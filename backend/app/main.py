@@ -179,6 +179,13 @@ def chain_schedule_coverage():
     return TaskScheduleService().check_schedule_coverage()
 
 
+@app.get("/api/chain/backfill-coverage")
+def chain_backfill_coverage(endpoint: str | None = None):
+    """链路22：补采覆盖链路（跨 collection/request_batch/retry_queue）"""
+    from app.services.collection import collection_service
+    return collection_service.report(endpoint)
+
+
 @app.get("/api/chain/encrypt-coverage")
 def chain_encrypt_coverage():
     """链路21：加密覆盖度（跨 data_encrypt/auth_profile/subscriber）"""

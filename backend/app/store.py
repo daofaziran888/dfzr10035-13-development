@@ -10,13 +10,21 @@ from app.seed import SEED_ROWS
 
 
 class Store:
+    # 采集处理的内部账本不参与通用模块清单和运营概览，由 /api/collection 单独暴露。
+    INTERNAL_TABLES = {
+        "collection_task",
+        "collection_batch",
+        "collection_receipt",
+        "collection_coverage",
+    }
+
     def __init__(self) -> None:
         self._tables: dict[str, list[dict[str, Any]]] = {
             name: [dict(row) for row in rows] for name, rows in SEED_ROWS.items()
         }
 
     def module_names(self) -> list[str]:
-        return sorted(self._tables)
+        return sorted(name for name in self._tables if name not in self.INTERNAL_TABLES)
 
     def rows(self, module: str) -> list[dict[str, Any]]:
         return self._tables.setdefault(module, [])

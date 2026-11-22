@@ -72,6 +72,7 @@ npm run dev
 | 抽样校验 | `sample_check` | 抽样计划 | 计划编号、目标端点、抽样比例 |
 | 用量计费 | `cost_account` | 用量账单 | 账单编号、提供方、计费周期 |
 | 任务调度 | `task_schedule` | 调度计划 | 计划编号、关联端点、Cron表达式 |
+| 采集处理 | `collection` | 补采申请/分时补采批次 | 申请编号、关联端点、时段、覆盖申请、补采结论 |
 
 ## 约定
 
@@ -80,6 +81,38 @@ npm run dev
   `frontend/src/domain/<模块>.ts`，用于承载真实业务差异并维持36题位容量。
 - 列表接口统一返回 `{ items, total, page, size }`，动作接口统一返回 `{ ok, message }`。
 - 状态流转只允许在 `app/services` 里改，路由层不做业务判断。
+
+## 采集处理（分时补采）
+
+停运时段的补采不再逐个建请求批次，而是由值班员一次提交多条申请，
+`app/services/collection.py` 按端点实际覆盖切成互不重叠的分时补采批次：
+
+- 同一端点可提交多条部分重叠的申请（如 08:00-10:00 与 09:00-11:00），
+  切分结果为 08:00-09:00 / 09:00-10:00 / 10:00-11:00，重叠段合并到同一批次；
+- 成功回执只把**尚未入账**的部分写入覆盖账本 `collection_coverage`，
+  同一段成功数据只计一次，重叠申请各自回看自己的实际补采时段；
+- 每个分时批次同步一条请求批次（`request_batch`）的 `补采清单`，
+  逐段回写状态、回执编号和已覆盖/未覆盖时段；
+- 中断/部分成功的剩余区间自动进入 `retry_queue`（队列状态 `补采待重放`），
+  `POST /api/collection/resume` 先核对已提交的成功回执再派发未覆盖片段；
+- 批量重复提交按申请时段复用申请与分时批次，不会重复入账。
+
+主要接口（均挂在 `/api/collection` 下）：
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| POST | `/submit` | 一次提交多条申请，返回切分片段与请求批次 |
+| GET | `/applications` | 申请清单与各申请实际补采时段 |
+| GET | `/batches` | 分时批次、补采结论、回执明细 |
+| POST | `/batches/{id}/receipt` | 登记单段回执（成功/中断/失败） |
+| POST | `/batches/{id}/dispatch` | 派发（自动跳过已覆盖区间） |
+| POST | `/resume` | 核对回执后派发恢复片段 |
+| GET | `/report` | 补采结果、各申请回执、恢复后应执行片段 |
+| GET | `/gaps` | 查询端点窗口内尚未覆盖的缺采时段 |
+
+前端入口：侧边栏「采集处理」（`frontend/src/views/CollectionView.vue`）。
+
+回归测试：`cd backend && .venv/bin/python -m unittest discover -s tests -v`。
 
 领域：数据工程
 子方向：数据采集、爬虫与RPA

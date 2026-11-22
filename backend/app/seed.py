@@ -893,4 +893,11 @@ SEED_ROWS: dict[str, list[dict[str, Any]]] = {
   '依赖检查': '任务调度样例3',
   '并发上限': '任务调度样例3',
   '下次执行': '任务调度样例3'}]
+    ,
+    # 采集处理（补采申请/补采批次/回执/已入账覆盖）默认从空表开始，
+    # 由 /api/collection 下的补采处理按提交结果逐步生成。
+    "collection_task": [],
+    "collection_batch": [],
+    "collection_receipt": [],
+    "collection_coverage": []
 }
